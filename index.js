@@ -19,7 +19,7 @@ const ALIPAY_PRIVATE_KEY = process.env.ALIPAY_PRIVATE_KEY || `-----BEGIN PRIVATE
 MIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQCfVEmdR8o+6yj1oBbYvZVBabQeDL1545yj13XzcdXH4oIa7PQy5tblg6btB2fJRrDUJE57RMwX5CTVKdoq4MTKmyskElq/HVXvCuH4kjMYybKWILYJRixzJEXwwLUS0io2ivBChNXqwHkkcP+olJ7UmcKPLEQ+Rs34+FV+WBHDzzWtUyPp6s9gL+V22ioNgA6xI1rqjTS9bv+Gcf0z4Bu7Ms8PEbTIBcCBfIFkZiENwhGfowZg7lOrao6yLmrX7SQK3C2WZ5L4wh5h6MFfm2sl155gMktic/9QCgFYCKpuXFjFNRtCujQ+zlngpBvH51zxoJiFd+/MChs5wDMKvKTLAgMBAAECggEAYSrmOiUuEnEX6bRYOpZkECCG2EyswUkunj0oke86kUxyTDl2NBTTueUwSB3cDcQu0zHRKxwp2+gnDlkX1E5/tZAsHzOSZDtfzQi2BwIiZ1uarjQE0GMbeJ0Gimz8AR5q4BibrfWVADWhq7e+MvFwa/fZz7cPZ2uG8e+BNCxBqUgZXaJ8YecAqm1xkpR2u8Ok56OWD8Qrf099fFjJ0jmw/qiAYsj/RjqhBCyO3bnTpXW+E7SE46e94i1NXUXYCW7bBbqEXh6phTSgbniHDs9nCso9zgnsiYKKngDmwoPOLByrIY4tDvoQXR24RUvzqIggwTbF9U62mDlnQ8Uhds3YAQKBgQD5+5ALr5YC/Hu58WaYM/56Dcl8APElIdVmN6XQcgiigNa6Yr5JbWKrrsx5ebuYmMPcs1OffwDaDkXZniSCl0SxGE1ZJGrpYLehq5QzrHwC368h0E7oeMfCJf3x/1KX+Iy0bgh+tTg4KBd1JwcZKYGw2zm+qlA614o5ZOXcXpzh4QKBgQCjKho+HjrAY9GBZqsOKKiE/RIl6TyT/gPKbF/qEsersrcXQ/Bol4zmGVAw1/VwRpxqkCmH7o3ztXZjb1RgrGzGpVp/16EzGZcOa/k05z6geKxtpi4HK16iNT8QwmerQukdE1/CSMyYiGEU30y1oETRiTxgpR3/UAQWUgGoeqE0KwKBgFgLG96hxuniVwlUVlgA5/3A4VfFVSlI00ofC01w/E2PpxEaOf7OgdQJyoZ2M3Y5R7JxjmA8cOZb5IoSwrUj5dOhxYxB4U20/Lf6IEZa14qDkcENBt2lvGVK0DftPv+7UIMzxdYqqVRN+oUOa9eW4NCTRbE7dupig5JXUQXeZM7BAoGAKwf7i85lKEArDLmK+1z1tL0ZgC4W7+DaFxSl5xG03y9u4g/k43C0lCqw33DVJhs5PVFv4o2jmlaNNoQx+J0AwxLw3y57MQLat876Fl22QpQQxYpCMVnax2TLkRv0Q1KOMEDfzFluu/ubvul1TaFLBQfwiHyDgMYVjd1q2ogc46kCgYAn9PfZXQjX0jePZz+7+O700Ro/vJTAT1/10jxNYA9mxPWQTSPEliNFrSJqMRI+7cISD4eFvmg+w7AMkfSbrq1EFgmin/OE42jkAGhoOAvJFCmNxsZXi2hM4NYmCcOHEsnBDDpqa0hLRvQoEKgOlk/m008JA9di3OuOuI17zT70lQ==
 -----END PRIVATE KEY-----`;
 const ALIPAY_PUBLIC_KEY = process.env.ALIPAY_PUBLIC_KEY || 'MIIBIjANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQCfVEmdR8o+6yj1oBbYvZVBabQeDL1545yj13XzcdXH4oIa7PQy5tblg6btB2fJRrDUJE57RMwX5CTVKdoq4MTKmyskElq/HVXvCuH4kjMYybKWILYJRixzJEXwwLUS0io2ivBChNXqwHkkcP+olJ7UmcKPLEQ+Rs34+FV+WBHDzzWtUyPp6s9gL+V22ioNgA6xI1rqjTS9bv+Gcf0z4Bu7Ms8PEbTIBcCBfIFkZiENwhGfowZg7lOrao6yLmrX7SQK3C2WZ5L4wh5h6MFfm2sl155gMktic/9QCgFYCKpuXFjFNRtCujQ+zlngpBvH51zxoJiFd+/MChs5wDMKvKTLAgMBAAECggEAYSrmOiUuEnEX6bRYOpZkECCG2EyswUkunj0oke86kUxyTDl2NBTTueUwSB3cDcQu0zHRKxwp2+gnDlkX1E5/tZAsHzOSZDtfzQi2BwIiZ1uarjQE0GMbeJ0Gimz8AR5q4BibrfWVADWhq7e+MvFwa/fZz7cPZ2uG8e+BNCxBqUgZXaJ8YecAqm1xkpR2u8Ok56OWD8Qrf099fFjJ0jmw/qiAYsj/RjqhBCyO3bnTpXW+E7SE46e94i1NXUXYCW7bBbqEXh6phTSgbniHDs9nCso9zgnsiYKKngDmwoPOLByrIY4tDvoQXR24RUvzqIggwTbF9U62mDlnQ8Uhds3YAQKBgQD5+5ALr5YC/Hu58WaYM/56Dcl8APElIdVmN6XQcgiigNa6Yr5JbWKrrsx5ebuYmMPcs1OffwDaDkXZniSCl0SxGE1ZJGrpYLehq5QzrHwC368h0E7oeMfCJf3x/1KX+Iy0bgh+tTg4KBd1JwcZKYGw2zm+qlA614o5ZOXcXpzh4QKBgQCjKho+HjrAY9GBZqsOKKiE/RIl6TyT/gPKbF/qEsersrcXQ/Bol4zmGVAw1/VwRpxqkCmH7o3ztXZjb1RgrGzGpVp/16EzGZcOa/k05z6geKxtpi4HK16iNT8QwmerQukdE1/CSMyYiGEU30y1oETRiTxgpR3/UAQWUgGoeqE0KwKBgFgLG96hxuniVwlUVlgA5/3A4VfFVSlI00ofC01w/E2PpxEaOf7OgdQJyoZ2M3Y5R7JxjmA8cOZb5IoSwrUj5dOhxYxB4U20/Lf6IEZa14qDkcENBt2lvGVK0DftPv+7UIMzxdYqqVRN+oUOa9eW4NCTRbE7dupig5JXUQXeZM7BAoGAKwf7i85lKEArDLmK+1z1tL0ZgC4W7+DaFxSl5xG03y9u4g/k43C0lCqw33DVJhs5PVFv4o2jmlaNNoQx+J0AwxLw3y57MQLat876Fl22QpQQxYpCMVnax2TLkRv0Q1KOMEDfzFluu/ubvul1TaFLBQfwiHyDgMYVjd1q2ogc46kCgYAn9PfZXQjX0jePZz+7+O700Ro/vJTAT1/10jxNYA9mxPWQTSPEliNFrSJqMRI+7cISD4eFvmg+w7AMkfSbrq1EFgmin/OE42jkAGhoOAvJFCmNxsZXi2hM4NYmCcOHEsnBDDpqa0hLRvQoEKgOlk/m008JA9di3OuOuI17zT70lQ==';
-const SERVER_URL = process.env.SERVER_URL || 'https://smartstudy-server-aiwq.onrender.com';
+const SERVER_URL = process.env.SERVER_URL || 'https://smartstudy-server-0a6h.onrender.com';
 const isSandbox = process.env.ALIPAY_SANDBOX === 'true' || true;
 
 let alipaySdk = null;
@@ -540,12 +540,12 @@ app.post('/api/confirm', (req, res) => {
 });
 
 app.get('/', (req, res) => {
-    const hasAlipayConfig = !!(process.env.ALIPAY_APP_ID && process.env.ALIPAY_PRIVATE_KEY);
+    const hasAlipayConfig = !!(ALIPAY_APP_ID && ALIPAY_PRIVATE_KEY);
     res.send(`智学宝支付服务器 - 运行正常<br>支付宝开放平台: ${hasAlipayConfig ? '✅ 已配置' : '❌ 未配置'}`);
 });
 
 app.listen(PORT, () => {
-    const hasAlipayConfig = !!(process.env.ALIPAY_APP_ID && process.env.ALIPAY_PRIVATE_KEY);
+    const hasAlipayConfig = !!(ALIPAY_APP_ID && ALIPAY_PRIVATE_KEY);
     console.log(`Server running on port ${PORT}`);
     console.log(`Alipay Open Platform: ${hasAlipayConfig ? '✅ Configured' : '❌ Not configured - using manual QR code mode'}`);
 });
