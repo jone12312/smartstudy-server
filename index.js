@@ -16,14 +16,26 @@ let db = { orders: {}, licenses: {} };
 
 const isSandbox = process.env.ALIPAY_SANDBOX === 'true';
 
-const alipaySdk = new AlipaySdk({
-    appId: process.env.ALIPAY_APP_ID || '',
-    privateKey: process.env.ALIPAY_PRIVATE_KEY || '',
-    alipayPublicKey: process.env.ALIPAY_PUBLIC_KEY || '',
-    gateway: isSandbox ? 'https://openapi.alipaydev.com/gateway.do' : 'https://openapi.alipay.com/gateway.do',
-    signType: 'RSA2',
-    charset: 'utf-8'
-});
+let alipaySdk = null;
+
+function getAlipaySdk() {
+    if (!alipaySdk && process.env.ALIPAY_APP_ID && process.env.ALIPAY_PRIVATE_KEY) {
+        try {
+            alipaySdk = new AlipaySdk({
+                appId: process.env.ALIPAY_APP_ID,
+                privateKey: process.env.ALIPAY_PRIVATE_KEY,
+                alipayPublicKey: process.env.ALIPAY_PUBLIC_KEY || '',
+                gateway: isSandbox ? 'https://openapi.alipaydev.com/gateway.do' : 'https://openapi.alipay.com/gateway.do',
+                signType: 'RSA2',
+                charset: 'utf-8'
+            });
+        } catch (e) {
+            console.error('Failed to initialize AlipaySdk:', e.message);
+            alipaySdk = null;
+        }
+    }
+    return alipaySdk;
+}
 
 function generateOrderId() {
     return 'ORD' + Date.now().toString(36) + crypto.randomBytes(4).toString('hex').toUpperCase();
@@ -179,7 +191,11 @@ app.post('/api/create', async (req, res) => {
     }
 
     try {
-        const result = await alipaySdk.exec('alipay.trade.precreate', {
+        const sdk = getAlipaySdk();
+        if (!sdk) {
+            throw new Error('Alipay SDK not initialized');
+        }
+        const result = await sdk.exec('alipay.trade.precreate', {
             bizContent: {
                 outTradeNo: orderId,
                 totalAmount: money,
@@ -322,7 +338,13 @@ app.post('/api/alipay/notify', async (req, res) => {
             return res.send('fail');
         }
 
-        const verifyResult = alipaySdk.checkNotifySign(params);
+        const sdk = getAlipaySdk();
+        if (!sdk) {
+            console.error('Alipay SDK not initialized for notify');
+            return res.send('fail');
+        }
+        
+        const verifyResult = sdk.checkNotifySign(params);
         
         if (!verifyResult) {
             console.error('Alipay notify sign verify failed');
