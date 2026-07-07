@@ -10,6 +10,9 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 let db = { orders: {}, licenses: {} };
+const fs = require('fs');
+const path = require('path');
+const qrBase64 = fs.readFileSync(path.join(__dirname, 'qrcode_base64.txt'), 'utf8').trim();
 
 function generateOrderId() {
     return 'ORD' + Date.now().toString(36) + crypto.randomBytes(4).toString('hex').toUpperCase();
@@ -40,8 +43,6 @@ app.post('/api/create', (req, res) => {
         status: 'pending',
         createdAt: new Date().toISOString()
     };
-
-    const qrBase64 = 'iVBORw0KGgoAAAANSUhEUgAAAtAAAAK7CAYAAADbZLgFAAAACXBIWXMAAA7EAAAOxAGVKw4bAAAgAElEQVR4nOyd23LbONOuX3BPytZmlHIO5/4vaw4/VyxLsiTuif9gqbEgxTFBgRQpp58q1mQSkQAaDaDRaLKFlFKCYRiGYRiGYRgjnLErwDAMwzAMwzCPBBvQDMMwDMMwDNMBNqAZhmEYhmEYpgNsQDMMwzAMwzBMB9iAZhiGYRiGYZgOsAHNMAzDMAzDMB1gA5phGIZhGIZhOsAGNMMwDMMwDMN0gA1ohmEYhmEYhukAG9AMwzAMwzAM0wE2oBmGYRiGYRimA2xAMwzDMAzDMEwH2IBmGIZhGIZhmA6wAc0wDMMwDMMwHWADmmEYhmEYhmE6wAY0wzAMwzAMw3SADWiGYRiGYRiG6QAb0AzDMAzDMAzTgUEN6Lqu1Z+zLBuyKGZAqqoCADRNg6ZpIKVE0zSDl9uX/txafy6fyx+z/LHR61iWpfpvURR3q0NRFKpsvR7X9ZsqU5Pho8nPlinIn7FjyvrrDflwIYT6s+/7F/9GCwkzXVzXBTRFresavu+jqip43qCqA/SgP7b15/K5/DHLHxsppTL+qb66HPQNxhC4rosgCC7+zvM8VSe9f6bK1GT4aPKzZWz5M3ZMXX+FHNiKPRwOcF0XcRwDAPb7Pebz+ZBFMj2Rpqnqt7quUZYloihCVVUoy1L925DY6E8f9efyufwxy58SZVlCCAHHcdA0zeCbgKqqVFm0TF1vZB6NsWX46PKz5d7yZ+yYuv4ObkDrSCnVrmGz2WC5XN6raOYGHMdBVVVomgZCCPi+r7xpjnP/8Pmu+tN3/bl8Ln/M8u9NXdeoqkq1OwxD9W9SysFPEIUQv3mZ8jxX9fE8T3n5p8rUZPho8rNlbPkzdkxdfwc3oE+nEwAgSRJ1dKkvRMx0ybIMURQB54nIdV0URQHP87Db7bBarQavg43+9FF/Lp/LH7P8MdHbSX8mD969PHdk/JDn6bM6TZmpyfDR5GfLFOTP2DFl/R3cgC7LEr7vq/8CwPv7O1ar1SSCwJk/Q16yt7c3rNfrC4VtmuYuXjQb/emj/lw+lz9m+WNT1zWyLMNsNrsISSnLcnDvD8WM4xwOAwBxHON4PCKKotG9T6ZMSYaPKD9bxpQ/Y8fk9VcOSNM0UkopN5uN9H1fApCz2UwmSSIB8PUg1/PzszydTlJKKbfbrdztdkOqTe/6c2v9uXwuf8zyx+Z4PKo/b7dbuVgsVJvuMYfrZSwWC7lYLOR2u/20flNlajJ8NPnZMrb8+fre+ju4B7ooCgRBoGIA6TMk+tuUzHSJoghZlkFKqY6hcUcPmq3+2Nafy+fyxyx/ClDoihACQRCgLMu7xY6S3OmzY/RVhUc7fp+KDB9VfraMKX/Gjinr791eInQcRx1hsuI+HtRnY8Ud2eqPbf25fC5/zPLHgupNL/OMMX/rZeovfj2KHKckw0eUny1TkD9jx1T19zFcIAzDMAzDMAwzEdiAZhiGYRiGYZgOsAHNMAzDMAzDMB1gA5phGIZhGIZhOsAGNMMwDMMwDMN0gA1ohmEYhmEYhukAG9AMwzAMwzAM04FJG9B6ooEoikatyyNDHx13HEfJ9FGSONCH06n/u36/03EceJ6nUgHf+9uRVP7pdLqpfD2BBM6pjAGo9KZthGF48f9ZlgHnNLb3KH9s+f/N6KnGqb/LslR9agJ9N5eSwNz7+7me5/2ma1VVtaZRnxJN01wk3fF9/+6JIKSUcF0XdV2rPr0XRVFc6B/xCH2or5Okh77vIwiCEWv1WARBcCE74lFskK+YRjoXA64X/HtPA==';
 
     const html = `<!DOCTYPE html>
 <html lang="zh-CN">
