@@ -1,8 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const crypto = require('crypto');
-const alipaySdkModule = require('alipay-sdk');
-const AlipaySdk = alipaySdkModule.default || alipaySdkModule;
+const AlipaySdk = require('alipay-sdk');
 const fs = require('fs');
 const path = require('path');
 
