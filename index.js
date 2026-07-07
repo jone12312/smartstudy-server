@@ -1,6 +1,9 @@
 const express = require('express');
 const cors = require('cors');
 const crypto = require('crypto');
+const AlipaySdk = require('alipay-sdk').default;
+const fs = require('fs');
+const path = require('path');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -10,9 +13,17 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 let db = { orders: {}, licenses: {} };
-const fs = require('fs');
-const path = require('path');
-const qrBase64 = fs.readFileSync(path.join(__dirname, 'qrcode_base64.txt'), 'utf8').trim();
+
+const isSandbox = process.env.ALIPAY_SANDBOX === 'true';
+
+const alipaySdk = new AlipaySdk({
+    appId: process.env.ALIPAY_APP_ID || '',
+    privateKey: process.env.ALIPAY_PRIVATE_KEY || '',
+    alipayPublicKey: process.env.ALIPAY_PUBLIC_KEY || '',
+    gateway: isSandbox ? 'https://openapi.alipaydev.com/gateway.do' : 'https://openapi.alipay.com/gateway.do',
+    signType: 'RSA2',
+    charset: 'utf-8'
+});
 
 function generateOrderId() {
     return 'ORD' + Date.now().toString(36) + crypto.randomBytes(4).toString('hex').toUpperCase();
@@ -30,10 +41,10 @@ app.post('/api/check', (req, res) => {
     res.json({ ok, deviceId: param });
 });
 
-app.post('/api/create', (req, res) => {
+app.post('/api/create', async (req, res) => {
     const { name, money, type, param } = req.body;
     const orderId = generateOrderId();
-    
+
     db.orders[orderId] = {
         orderId,
         name,
@@ -41,10 +52,22 @@ app.post('/api/create', (req, res) => {
         type,
         param,
         status: 'pending',
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
+        alipayTradeNo: null
     };
 
-    const html = `<!DOCTYPE html>
+    const serverUrl = process.env.SERVER_URL || `http://localhost:${PORT}`;
+    const hasAlipayConfig = process.env.ALIPAY_APP_ID && process.env.ALIPAY_PRIVATE_KEY;
+
+    if (!hasAlipayConfig) {
+        let qrBase64 = '';
+        try {
+            qrBase64 = fs.readFileSync(path.join(__dirname, 'qrcode_base64.txt'), 'utf8').trim();
+        } catch (e) {
+            console.warn('QR code file not found, using manual payment mode');
+        }
+        
+        const html = `<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
@@ -65,6 +88,7 @@ app.post('/api/create', (req, res) => {
         .pending { color: #f59e0b; }
         .success { color: #22c55e; }
         .error { color: #ef4444; }
+        .warning { color: #f59e0b; font-size: 12px; margin-top: 10px; padding: 10px; background: #fffbeb; border-radius: 8px; }
     </style>
 </head>
 <body>
@@ -79,6 +103,7 @@ app.post('/api/create', (req, res) => {
             <p>请使用支付宝扫码支付</p>
             <p>支付完成后点击下方按钮验证</p>
         </div>
+        <div class="warning">⚠️ 当前未配置支付宝开放平台，使用手动收款码模式</div>
         <button class="btn-verify" onclick="verifyPayment()">我已支付</button>
         <div class="status" id="status"></div>
     </div>
@@ -150,8 +175,184 @@ app.post('/api/create', (req, res) => {
     </script>
 </body>
 </html>`;
+        return res.send(html);
+    }
 
-    res.send(html);
+    try {
+        const result = await alipaySdk.exec('alipay.trade.precreate', {
+            bizContent: {
+                outTradeNo: orderId,
+                totalAmount: money,
+                subject: name || '智学宝会员',
+                storeId: 'smartstudy',
+                timeoutExpress: '30m'
+            },
+            notifyUrl: `${serverUrl}/api/alipay/notify`
+        });
+
+        if (result.code === '10000' && result.qrCode) {
+            db.orders[orderId].alipayTradeNo = result.outTradeNo;
+            db.orders[orderId].qrCode = result.qrCode;
+            
+            const html = `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>智学宝支付</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; min-height: 100vh; display: flex; justify-content: center; align-items: center; padding: 20px; }
+        .container { background: white; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); padding: 40px; max-width: 400px; width: 100%; text-align: center; }
+        h1 { font-size: 24px; color: #1a1a1a; margin-bottom: 8px; }
+        .price { font-size: 32px; color: #ef4444; font-weight: 700; margin: 20px 0; }
+        .qrcode { width: 250px; height: 250px; margin: 20px auto; border-radius: 12px; overflow: hidden; border: 2px solid #eee; background: white; }
+        .qrcode img { width: 100%; height: 100%; object-fit: cover; }
+        .tips { color: #666; font-size: 14px; line-height: 1.6; margin-top: 20px; }
+        .btn-verify { background: #6366f1; color: white; border: none; padding: 14px 40px; border-radius: 10px; font-size: 16px; font-weight: 600; cursor: pointer; margin-top: 20px; transition: background 0.2s; }
+        .btn-verify:hover { background: #4f46e5; }
+        .status { margin-top: 15px; font-size: 14px; }
+        .pending { color: #f59e0b; }
+        .success { color: #22c55e; }
+        .error { color: #ef4444; }
+        .badge { display: inline-block; background: #22c55e; color: white; font-size: 12px; padding: 2px 8px; border-radius: 10px; margin-left: 8px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>智学宝<span class="badge">支付宝官方支付</span></h1>
+        <p style="color:#666;font-size:14px;">永久解锁全部功能</p>
+        <div class="price">¥${money}</div>
+        <div class="qrcode">
+            <img src="https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(result.qrCode)}" alt="支付宝支付二维码">
+        </div>
+        <div class="tips">
+            <p>请使用支付宝扫码支付</p>
+            <p>支付完成后系统自动解锁</p>
+        </div>
+        <button class="btn-verify" onclick="verifyPayment()">我已支付</button>
+        <div class="status" id="status"></div>
+    </div>
+    <script>
+        const orderId = '${orderId}';
+        const deviceId = '${param}';
+        let pollingInterval = null;
+        
+        async function verifyPayment() {
+            const btn = document.querySelector('.btn-verify');
+            const status = document.getElementById('status');
+            
+            btn.disabled = true;
+            btn.textContent = '验证中...';
+            status.textContent = '正在验证支付状态，请稍候...';
+            
+            try {
+                const resp = await fetch('/api/check-pay', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ orderId, deviceId })
+                });
+                
+                const data = await resp.json();
+                
+                if (data.success) {
+                    status.textContent = '支付成功！脚本已解锁，请返回学习通页面刷新';
+                    btn.textContent = '已完成';
+                    btn.style.background = '#22c55e';
+                    if (pollingInterval) clearInterval(pollingInterval);
+                    setTimeout(() => { window.close(); }, 2000);
+                } else {
+                    status.textContent = '等待支付确认，请保持页面打开...';
+                    status.className = 'status pending';
+                    startPolling();
+                }
+            } catch (e) {
+                status.textContent = '验证失败，请重试';
+                btn.disabled = false;
+                btn.textContent = '我已支付';
+            }
+        }
+        
+        async function startPolling() {
+            pollingInterval = setInterval(async () => {
+                try {
+                    const resp = await fetch('/api/check-pay', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ orderId, deviceId })
+                    });
+                    const data = await resp.json();
+                    
+                    if (data.success) {
+                        const status = document.getElementById('status');
+                        const btn = document.querySelector('.btn-verify');
+                        status.textContent = '支付成功！脚本已解锁，请返回学习通页面刷新';
+                        status.className = 'status success';
+                        btn.textContent = '已完成';
+                        btn.style.background = '#22c55e';
+                        clearInterval(pollingInterval);
+                        setTimeout(() => { window.close(); }, 2000);
+                    }
+                } catch (e) {
+                    console.log('Polling error:', e);
+                }
+            }, 3000);
+        }
+        
+        startPolling();
+    </script>
+</body>
+</html>`;
+            res.send(html);
+        } else {
+            console.error('Alipay precreate failed:', result);
+            res.status(500).send('创建支付订单失败，请稍后重试');
+        }
+    } catch (error) {
+        console.error('Alipay API error:', error);
+        res.status(500).send('支付接口调用失败，请稍后重试');
+    }
+});
+
+app.post('/api/alipay/notify', async (req, res) => {
+    try {
+        const params = req.body;
+        
+        if (!params.out_trade_no) {
+            return res.send('fail');
+        }
+
+        const verifyResult = alipaySdk.checkNotifySign(params);
+        
+        if (!verifyResult) {
+            console.error('Alipay notify sign verify failed');
+            return res.send('fail');
+        }
+
+        if (params.trade_status === 'TRADE_SUCCESS' || params.trade_status === 'TRADE_FINISHED') {
+            const orderId = params.out_trade_no;
+            const order = db.orders[orderId];
+            
+            if (order && order.status !== 'paid') {
+                db.orders[orderId].status = 'paid';
+                db.orders[orderId].alipayTradeNo = params.trade_no;
+                db.orders[orderId].paidAt = new Date().toISOString();
+                
+                db.licenses[order.param] = {
+                    activatedAt: new Date().toISOString(),
+                    orderId,
+                    alipayTradeNo: params.trade_no
+                };
+                
+                console.log(`Payment successful: ${orderId} - ¥${order.money}`);
+            }
+        }
+        
+        res.send('success');
+    } catch (error) {
+        console.error('Alipay notify error:', error);
+        res.send('fail');
+    }
 });
 
 app.post('/api/verify', (req, res) => {
@@ -163,9 +364,17 @@ app.post('/api/verify', (req, res) => {
         return res.json({ success: false, message: '订单不存在' });
     }
 
-    db.orders[orderId].status = 'confirmed';
+    if (process.env.ALIPAY_APP_ID && process.env.ALIPAY_PRIVATE_KEY) {
+        return res.json({ success: false, message: '等待支付宝回调确认支付' });
+    }
+
+    db.orders[orderId].status = 'paid';
+    db.licenses[deviceId] = {
+        activatedAt: new Date().toISOString(),
+        orderId
+    };
     
-    res.json({ success: false, message: '待管理员确认支付' });
+    res.json({ success: true, message: '支付确认成功' });
 });
 
 app.post('/api/check-pay', (req, res) => {
@@ -181,7 +390,7 @@ app.post('/api/check-pay', (req, res) => {
         return res.json({ success: true, message: '支付已确认' });
     }
     
-    res.json({ success: false, message: '待管理员确认' });
+    res.json({ success: false, message: '待支付确认' });
 });
 
 app.get('/admin', (req, res) => {
@@ -204,16 +413,22 @@ app.get('/admin', (req, res) => {
         .btn-confirm { background: #22c55e; color: white; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; }
         .btn-confirm:hover { background: #16a34a; }
         .empty { color: #999; text-align: center; padding: 40px; }
+        .config-info { background: #f0f9ff; padding: 15px; border-radius: 8px; margin-bottom: 20px; color: #0369a1; font-size: 14px; }
+        .config-warning { background: #fffbeb; padding: 15px; border-radius: 8px; margin-bottom: 20px; color: #92400e; font-size: 14px; }
     </style>
 </head>
 <body>
     <h1>智学宝 - 支付订单管理</h1>
+    ${process.env.ALIPAY_APP_ID ? 
+        '<div class="config-info">✅ 支付宝开放平台已配置</div>' : 
+        '<div class="config-warning">⚠️ 未配置支付宝开放平台，使用手动收款码模式</div>'}
     <table>
         <thead>
             <tr>
                 <th>订单号</th>
                 <th>金额</th>
                 <th>设备ID</th>
+                <th>支付宝交易号</th>
                 <th>状态</th>
                 <th>创建时间</th>
                 <th>操作</th>
@@ -222,7 +437,7 @@ app.get('/admin', (req, res) => {
         <tbody>`;
     
     if (orders.length === 0) {
-        html += `<tr><td colspan="6" class="empty">暂无订单</td></tr>`;
+        html += `<tr><td colspan="7" class="empty">暂无订单</td></tr>`;
     } else {
         orders.forEach(order => {
             let statusClass = 'status-pending';
@@ -244,6 +459,7 @@ app.get('/admin', (req, res) => {
                 <td>${order.orderId}</td>
                 <td>¥${order.money}</td>
                 <td>${order.param}</td>
+                <td>${order.alipayTradeNo || '-'}</td>
                 <td class="${statusClass}">${statusText}</td>
                 <td>${new Date(order.createdAt).toLocaleString('zh-CN')}</td>
                 <td>${action}</td>
@@ -297,9 +513,12 @@ app.post('/api/confirm', (req, res) => {
 });
 
 app.get('/', (req, res) => {
-    res.send('智学宝支付服务器 - 运行正常');
+    const hasAlipayConfig = !!(process.env.ALIPAY_APP_ID && process.env.ALIPAY_PRIVATE_KEY);
+    res.send(`智学宝支付服务器 - 运行正常<br>支付宝开放平台: ${hasAlipayConfig ? '✅ 已配置' : '❌ 未配置'}`);
 });
 
 app.listen(PORT, () => {
+    const hasAlipayConfig = !!(process.env.ALIPAY_APP_ID && process.env.ALIPAY_PRIVATE_KEY);
     console.log(`Server running on port ${PORT}`);
+    console.log(`Alipay Open Platform: ${hasAlipayConfig ? '✅ Configured' : '❌ Not configured - using manual QR code mode'}`);
 });
