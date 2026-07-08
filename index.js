@@ -382,7 +382,8 @@ app.post('/api/create', async (req, res) => {
             res.status(500).send('创建支付订单失败，请稍后重试');
         }
     } catch (error) {
-        console.error('Alipay API error:', error.message, error.stack);
+        console.error('Alipay API error:', error.message);
+        console.error('Error details:', JSON.stringify(error, null, 2));
         res.status(500).send(`支付接口调用失败：${error.message}`);
     }
 });
