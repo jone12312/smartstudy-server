@@ -97,7 +97,10 @@ function getAlipaySdk() {
 }
 
 async function createAlipayOrderDirect(orderId, money, name) {
-    const gateway = isSandbox ? 'https://openapi.alipaydev.com/gateway.do' : 'https://openapi.alipay.com/gateway.do';
+    const https = require('https');
+    
+    const gateway = isSandbox ? 'openapi.alipaydev.com' : 'openapi.alipay.com';
+    console.log('Alipay gateway:', gateway);
     
     const params = {
         app_id: ALIPAY_APP_ID,
@@ -116,6 +119,8 @@ async function createAlipayOrderDirect(orderId, money, name) {
         })
     };
     
+    console.log('Alipay params:', JSON.stringify(params, null, 2));
+    
     const sortedKeys = Object.keys(params).sort();
     let signContent = '';
     for (let i = 0; i < sortedKeys.length; i++) {
@@ -125,6 +130,8 @@ async function createAlipayOrderDirect(orderId, money, name) {
             signContent += `${key}=${params[key]}`;
         }
     }
+    
+    console.log('Sign content length:', signContent.length);
     
     let privateKey = ALIPAY_PRIVATE_KEY;
     if (privateKey.includes('-----BEGIN PRIVATE KEY-----')) {
@@ -138,20 +145,62 @@ async function createAlipayOrderDirect(orderId, money, name) {
     
     params.sign = sign;
     
-    try {
-        const response = await axios.post(gateway, null, {
-            params: params,
-            timeout: 30000,
+    const queryString = Object.keys(params)
+        .map(key => `${encodeURIComponent(key)}=${encodeURIComponent(params[key])}`)
+        .join('&');
+    
+    console.log('Query string length:', queryString.length);
+    
+    return new Promise((resolve, reject) => {
+        console.log('Calling Alipay API via https module...');
+        
+        const options = {
+            hostname: gateway,
+            port: 443,
+            path: `/gateway.do?${queryString}`,
+            method: 'GET',
+            timeout: 60000,
             headers: {
-                'Content-Type': 'application/x-www-form-urlencoded; charset=utf-8'
+                'Connection': 'keep-alive',
+                'Accept': 'application/json'
             }
+        };
+        
+        const req = https.request(options, (res) => {
+            console.log('Alipay API response status:', res.statusCode);
+            
+            let data = '';
+            res.on('data', (chunk) => {
+                data += chunk;
+            });
+            
+            res.on('end', () => {
+                console.log('Alipay API response data length:', data.length);
+                try {
+                    const result = JSON.parse(data);
+                    console.log('Alipay API response:', JSON.stringify(result, null, 2));
+                    resolve(result.alipay_trade_precreate_response || result);
+                } catch (e) {
+                    console.error('Failed to parse response:', e.message);
+                    console.error('Raw response:', data);
+                    reject(new Error('Failed to parse response: ' + data.substring(0, 500)));
+                }
+            });
         });
         
-        return response.data.alipay_trade_precreate_response || response.data;
-    } catch (error) {
-        console.error('Direct Alipay API error:', error.message);
-        throw error;
-    }
+        req.on('error', (e) => {
+            console.error('HTTPS request error:', e.message);
+            reject(new Error('HTTPS request error: ' + e.message));
+        });
+        
+        req.on('timeout', () => {
+            console.error('HTTPS request timeout');
+            req.destroy();
+            reject(new Error('HTTPS request timeout'));
+        });
+        
+        req.end();
+    });
 }
 
 function generateOrderId() {
