@@ -22,12 +22,66 @@ const isSandbox = process.env.ALIPAY_SANDBOX === 'true' || true;
 
 let alipaySdk = null;
 
+function convertPkcs8ToPkcs1(pkcs8Key) {
+    try {
+        const key = pkcs8Key.replace(/-----BEGIN PRIVATE KEY-----/g, '')
+                           .replace(/-----END PRIVATE KEY-----/g, '')
+                           .replace(/\s+/g, '');
+        const der = Buffer.from(key, 'base64');
+        const asn1 = require('asn1.js');
+        
+        const RSAPrivateKey = asn1.define('RSAPrivateKey', function() {
+            this.seq().obj(
+                this.key('version').int(),
+                this.key('modulus').int(),
+                this.key('publicExponent').int(),
+                this.key('privateExponent').int(),
+                this.key('prime1').int(),
+                this.key('prime2').int(),
+                this.key('exponent1').int(),
+                this.key('exponent2').int(),
+                this.key('coefficient').int()
+            );
+        });
+        
+        const PrivateKeyInfo = asn1.define('PrivateKeyInfo', function() {
+            this.seq().obj(
+                this.key('version').int(),
+                this.key('algorithm').seq().obj(
+                    this.key('algorithm').objid(),
+                    this.key('parameters').optional().null_()
+                ),
+                this.key('privateKey').octstr()
+            );
+        });
+        
+        const parsed = PrivateKeyInfo.decode(der, 'der');
+        const rsaKey = RSAPrivateKey.decode(parsed.privateKey, 'der');
+        const pkcs1Der = RSAPrivateKey.encode(rsaKey, 'der');
+        const pkcs1Base64 = pkcs1Der.toString('base64');
+        
+        let formatted = '';
+        for (let i = 0; i < pkcs1Base64.length; i += 64) {
+            formatted += pkcs1Base64.substring(i, i + 64) + '\n';
+        }
+        
+        return '-----BEGIN RSA PRIVATE KEY-----\n' + formatted + '-----END RSA PRIVATE KEY-----';
+    } catch (e) {
+        console.error('Failed to convert PKCS8 to PKCS1:', e.message);
+        return pkcs8Key;
+    }
+}
+
 function getAlipaySdk() {
     if (!alipaySdk) {
         try {
+            let privateKey = ALIPAY_PRIVATE_KEY;
+            if (privateKey.includes('-----BEGIN PRIVATE KEY-----')) {
+                privateKey = convertPkcs8ToPkcs1(privateKey);
+            }
             alipaySdk = new AlipaySdk({
                 appId: ALIPAY_APP_ID,
-                privateKey: ALIPAY_PRIVATE_KEY,
+                privateKey: privateKey,
                 alipayPublicKey: ALIPAY_PUBLIC_KEY,
                 gateway: isSandbox ? 'https://openapi.alipaydev.com/gateway.do' : 'https://openapi.alipay.com/gateway.do',
                 signType: 'RSA2',
@@ -538,8 +592,16 @@ app.post('/api/confirm', (req, res) => {
 });
 
 app.get('/', (req, res) => {
-    const hasAlipayConfig = !!(ALIPAY_APP_ID && ALIPAY_PRIVATE_KEY);
-    res.send(`智学宝支付服务器 - 运行正常<br>支付宝开放平台: ${hasAlipayConfig ? '✅ 已配置' : '❌ 未配置'}`);
+    let alipayStatus = '❌ 未配置';
+    try {
+        if (ALIPAY_APP_ID && ALIPAY_PRIVATE_KEY) {
+            const testSdk = getAlipaySdk();
+            alipayStatus = testSdk ? '✅ 已配置' : '❌ 配置无效';
+        }
+    } catch (e) {
+        alipayStatus = '❌ 配置错误: ' + e.message;
+    }
+    res.send(`智学宝支付服务器 - 运行正常<br>支付宝开放平台: ${alipayStatus}`);
 });
 
 app.listen(PORT, () => {
