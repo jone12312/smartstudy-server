@@ -23,63 +23,27 @@ const isSandbox = process.env.ALIPAY_SANDBOX === 'true' || true;
 
 let alipaySdk = null;
 
-function convertPkcs8ToPkcs1(pkcs8Key) {
+function normalizePrivateKey(privateKey) {
     try {
-        const key = pkcs8Key.replace(/-----BEGIN PRIVATE KEY-----/g, '')
-                           .replace(/-----END PRIVATE KEY-----/g, '')
-                           .replace(/\s+/g, '');
-        const der = Buffer.from(key, 'base64');
-        const asn1 = require('asn1.js');
-        
-        const RSAPrivateKey = asn1.define('RSAPrivateKey', function() {
-            this.seq().obj(
-                this.key('version').int(),
-                this.key('modulus').int(),
-                this.key('publicExponent').int(),
-                this.key('privateExponent').int(),
-                this.key('prime1').int(),
-                this.key('prime2').int(),
-                this.key('exponent1').int(),
-                this.key('exponent2').int(),
-                this.key('coefficient').int()
-            );
-        });
-        
-        const PrivateKeyInfo = asn1.define('PrivateKeyInfo', function() {
-            this.seq().obj(
-                this.key('version').int(),
-                this.key('algorithm').seq().obj(
-                    this.key('algorithm').objid(),
-                    this.key('parameters').optional().null_()
-                ),
-                this.key('privateKey').octstr()
-            );
-        });
-        
-        const parsed = PrivateKeyInfo.decode(der, 'der');
-        const rsaKey = RSAPrivateKey.decode(parsed.privateKey, 'der');
-        const pkcs1Der = RSAPrivateKey.encode(rsaKey, 'der');
-        const pkcs1Base64 = pkcs1Der.toString('base64');
-        
-        let formatted = '';
-        for (let i = 0; i < pkcs1Base64.length; i += 64) {
-            formatted += pkcs1Base64.substring(i, i + 64) + '\n';
+        if (!privateKey.includes('-----BEGIN')) {
+            let formatted = '';
+            const cleanKey = privateKey.replace(/\s+/g, '');
+            for (let i = 0; i < cleanKey.length; i += 64) {
+                formatted += cleanKey.substring(i, i + 64) + '\n';
+            }
+            privateKey = '-----BEGIN PRIVATE KEY-----\n' + formatted + '-----END PRIVATE KEY-----';
         }
-        
-        return '-----BEGIN RSA PRIVATE KEY-----\n' + formatted + '-----END RSA PRIVATE KEY-----';
+        return privateKey;
     } catch (e) {
-        console.error('Failed to convert PKCS8 to PKCS1:', e.message);
-        return pkcs8Key;
+        console.error('Failed to normalize private key:', e.message);
+        return privateKey;
     }
 }
 
 function getAlipaySdk() {
     if (!alipaySdk) {
         try {
-            let privateKey = ALIPAY_PRIVATE_KEY;
-            if (privateKey.includes('-----BEGIN PRIVATE KEY-----')) {
-                privateKey = convertPkcs8ToPkcs1(privateKey);
-            }
+            let privateKey = normalizePrivateKey(ALIPAY_PRIVATE_KEY);
             alipaySdk = new AlipaySdk({
                 appId: ALIPAY_APP_ID,
                 privateKey: privateKey,
@@ -133,10 +97,7 @@ async function createAlipayOrderDirect(orderId, money, name) {
     
     console.log('Sign content length:', signContent.length);
     
-    let privateKey = ALIPAY_PRIVATE_KEY;
-    if (privateKey.includes('-----BEGIN PRIVATE KEY-----')) {
-        privateKey = convertPkcs8ToPkcs1(privateKey);
-    }
+    const privateKey = normalizePrivateKey(ALIPAY_PRIVATE_KEY);
     
     const sign = crypto.sign('RSA-SHA256', Buffer.from(signContent, 'utf-8'), {
         key: privateKey,
