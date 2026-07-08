@@ -254,18 +254,18 @@ app.post('/api/create', async (req, res) => {
         }
         const result = await sdk.exec('alipay.trade.precreate', {
             bizContent: {
-                outTradeNo: orderId,
-                totalAmount: money,
+                out_trade_no: orderId,
+                total_amount: money,
                 subject: name || '智学宝会员',
-                storeId: 'smartstudy',
-                timeoutExpress: '30m'
+                store_id: 'smartstudy',
+                timeout_express: '30m'
             },
-            notifyUrl: `${SERVER_URL}/api/alipay/notify`
+            notify_url: `${SERVER_URL}/api/alipay/notify`
         });
 
-        if (result.code === '10000' && result.qrCode) {
-            db.orders[orderId].alipayTradeNo = result.outTradeNo;
-            db.orders[orderId].qrCode = result.qrCode;
+        if (result.code === '10000' && (result.qr_code || result.qrCode)) {
+            db.orders[orderId].alipayTradeNo = result.out_trade_no || result.outTradeNo;
+            db.orders[orderId].qrCode = result.qr_code || result.qrCode;
             
             const html = `<!DOCTYPE html>
 <html lang="zh-CN">
