@@ -317,7 +317,14 @@ app.post('/api/create', async (req, res) => {
     }
 
     try {
-        const result = await createAlipayOrderDirect(orderId, money, name || '智学宝会员');
+        const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('支付宝API请求超时')), 10000)
+        );
+        
+        const result = await Promise.race([
+            createAlipayOrderDirect(orderId, money, name || '智学宝会员'),
+            timeoutPromise
+        ]);
 
         if (result.code === '10000' && (result.qr_code || result.qrCode)) {
             db.orders[orderId].alipayTradeNo = result.out_trade_no || result.outTradeNo;
@@ -440,7 +447,8 @@ app.post('/api/create', async (req, res) => {
     } catch (error) {
         console.error('Alipay API error:', error.message);
         console.error('Error details:', JSON.stringify(error, null, 2));
-        res.status(500).send(`支付接口调用失败：${error.message}`);
+        
+        res.status(503).send(`支付接口调用失败，请重试：${error.message}`);
     }
 });
 
