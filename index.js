@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const crypto = require('crypto');
+const axios = require('axios');
 const AlipaySdk = require('alipay-sdk');
 const fs = require('fs');
 const path = require('path');
@@ -93,6 +94,64 @@ function getAlipaySdk() {
         }
     }
     return alipaySdk;
+}
+
+async function createAlipayOrderDirect(orderId, money, name) {
+    const gateway = isSandbox ? 'https://openapi.alipaydev.com/gateway.do' : 'https://openapi.alipay.com/gateway.do';
+    
+    const params = {
+        app_id: ALIPAY_APP_ID,
+        method: 'alipay.trade.precreate',
+        format: 'JSON',
+        charset: 'utf-8',
+        sign_type: 'RSA2',
+        timestamp: new Date().toISOString().replace(/T/g, ' ').substring(0, 19),
+        version: '1.0',
+        notify_url: `${SERVER_URL}/api/alipay/notify`,
+        biz_content: JSON.stringify({
+            out_trade_no: orderId,
+            total_amount: money,
+            subject: name || '智学宝会员',
+            timeout_express: '30m'
+        })
+    };
+    
+    const sortedKeys = Object.keys(params).sort();
+    let signContent = '';
+    for (let i = 0; i < sortedKeys.length; i++) {
+        const key = sortedKeys[i];
+        if (params[key]) {
+            if (i > 0) signContent += '&';
+            signContent += `${key}=${params[key]}`;
+        }
+    }
+    
+    let privateKey = ALIPAY_PRIVATE_KEY;
+    if (privateKey.includes('-----BEGIN PRIVATE KEY-----')) {
+        privateKey = convertPkcs8ToPkcs1(privateKey);
+    }
+    
+    const sign = crypto.sign('RSA-SHA256', Buffer.from(signContent, 'utf-8'), {
+        key: privateKey,
+        padding: crypto.constants.RSA_PKCS1_PADDING
+    }).toString('base64');
+    
+    params.sign = sign;
+    
+    try {
+        const response = await axios.post(gateway, null, {
+            params: params,
+            timeout: 30000,
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded; charset=utf-8'
+            }
+        });
+        
+        return response.data.alipay_trade_precreate_response || response.data;
+    } catch (error) {
+        console.error('Direct Alipay API error:', error.message);
+        throw error;
+    }
 }
 
 function generateOrderId() {
@@ -248,20 +307,7 @@ app.post('/api/create', async (req, res) => {
     }
 
     try {
-        const sdk = getAlipaySdk();
-        if (!sdk) {
-            throw new Error('Alipay SDK not initialized');
-        }
-        const result = await sdk.exec('alipay.trade.precreate', {
-            bizContent: {
-                out_trade_no: orderId,
-                total_amount: money,
-                subject: name || '智学宝会员',
-                store_id: 'smartstudy',
-                timeout_express: '30m'
-            },
-            notify_url: `${SERVER_URL}/api/alipay/notify`
-        });
+        const result = await createAlipayOrderDirect(orderId, money, name || '智学宝会员');
 
         if (result.code === '10000' && (result.qr_code || result.qrCode)) {
             db.orders[orderId].alipayTradeNo = result.out_trade_no || result.outTradeNo;
